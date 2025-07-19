@@ -1,6 +1,10 @@
+import streamlit as st
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+import random
+
+st.set_page_config(page_title="Jamaica Lotto Predictor", layout="centered")
 
 def scrape_historical():
     url = 'https://www.jamaicaindex.com/lottery/results/lotto'
@@ -12,22 +16,22 @@ def scrape_historical():
 
     try:
         r = requests.get(url, headers=headers, timeout=10)
-        print(f"HTTP status: {r.status_code}")
         if r.status_code != 200:
+            st.error("Failed to fetch draw data.")
             return pd.DataFrame()
 
         soup = BeautifulSoup(r.text, 'html.parser')
         table = soup.find("table")
         if not table:
-            print("No table found on the page.")
+            st.error("Draw table not found.")
             return pd.DataFrame()
 
-        rows = table.find_all("tr")[1:]  # skip header
+        rows = table.find_all("tr")[1:]
         data = []
 
         for row in rows:
             cols = row.find_all("td")
-            if not cols or len(cols) < 8:
+            if len(cols) < 8:
                 continue
             try:
                 date = pd.to_datetime(cols[0].text.strip())
@@ -43,14 +47,38 @@ def scrape_historical():
                     'n6': numbers[5],
                     'bonus': bonus
                 })
-            except ValueError as ve:
-                print(f"Skipping row due to value error: {ve}")
+            except ValueError:
                 continue
 
-        df = pd.DataFrame(data)
-        print(f"Scraped {len(df)} draws.")
-        return df
-
+        return pd.DataFrame(data)
     except Exception as e:
-        print(f"Error during scraping: {e}")
+        st.error(f"Error fetching data: {e}")
         return pd.DataFrame()
+
+def generate_predictions(freq_weights=None):
+    pool = list(range(1, 41))
+    if freq_weights:
+        weights = [freq_weights.get(i, 0.01) for i in pool]
+        return random.choices(pool, weights=weights, k=6)
+    else:
+        return random.sample(pool, 6)
+
+st.title("ð¯ð² Jamaica Lotto Predictor")
+st.markdown("**Predict numbers based on recent draw trends.**")
+
+df = scrape_historical()
+if df.empty:
+    st.stop()
+
+st.subheader("ð Recent Draws")
+st.dataframe(df.head(10))
+
+# Frequency-based weighting
+recent = df.tail(30)
+freq = recent[['n1','n2','n3','n4','n5','n6']].stack().value_counts(normalize=True)
+freq_weights = freq.to_dict()
+
+st.subheader("ð® Your Predictions")
+for i in range(5):
+    prediction = generate_predictions(freq_weights)
+    st.write(f"Set {i+1}: ", sorted(prediction))
