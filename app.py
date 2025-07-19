@@ -2,9 +2,7 @@ import pandas as pd
 import numpy as np
 import requests
 from bs4 import BeautifulSoup
-from flask import Flask, jsonify
-
-app = Flask(__name__)
+import streamlit as st
 
 def scrape_historical():
     url = 'https://www.jamaicaindex.com/lottery/results/lotto'
@@ -29,18 +27,19 @@ def build_features(df, window=50):
     feats = [freq.reindex(range(1, 39), fill_value=0).values, np.array([recency[i] for i in range(1, 39)])]
     return np.concatenate(feats)
 
-@app.route("/predict", methods=["GET"])
-def predict():
-    df = scrape_historical()
-    features = build_features(df)
-    probabilities = features[:38] * 0.7 + (1 / (features[38:] + 1)) * 0.3
-    choices = np.argsort(probabilities)[::-1] + 1
+st.title("🎲 Jamaican Lotto Predictor")
+st.caption("This app scrapes past draws and predicts 5 sets of Lotto numbers.")
 
-    def get_ticket(start):
-        return sorted(list(map(int, choices[start:start + 6])))
+df = scrape_historical()
+features = build_features(df)
+probabilities = features[:38] * 0.7 + (1 / (features[38:] + 1)) * 0.3
+choices = np.argsort(probabilities)[::-1] + 1
 
-    tickets = [get_ticket(i * 6) for i in range(5)]
-    return jsonify({"predictions": tickets})
+def get_ticket(start):
+    return sorted(list(map(int, choices[start:start + 6])))
 
-if __name__ == "__main__":
-app.run(host="0.0.0.0", port=8080)
+tickets = [get_ticket(i * 6) for i in range(5)]
+
+st.subheader("🔢 Your Predictions")
+for i, t in enumerate(tickets, 1):
+    st.write(f"Ticket #{i}: {t}")
