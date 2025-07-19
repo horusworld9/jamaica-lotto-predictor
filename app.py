@@ -8,18 +8,33 @@ def scrape_historical():
     url = 'https://www.jamaicaindex.com/lottery/results/lotto'
     r = requests.get(url)
     soup = BeautifulSoup(r.text, 'html.parser')
-    rows = soup.select('table tr')[1:]
+    table = soup.find("table")
+    rows = table.find_all("tr")[1:]  # skip header
     data = []
+
     for row in rows:
-        cols = row.find_all('td')
+        cols = row.find_all("td")
         if not cols or len(cols) < 8:
             continue
-        date = cols[0].text.strip()
-        nums = [int(n.text) for n in cols[1:7]]
-        bonus = int(cols[7].text)
-        data.append({'date': pd.to_datetime(date), **{f'n{i+1}': nums[i] for i in range(6)}, 'bonus': bonus})
-    return pd.DataFrame(data)
 
+        date = cols[0].text.strip()
+        try:
+            numbers = [int(n.strip()) for n in cols[1:7]]
+            bonus = int(cols[7].text.strip())
+            data.append({
+                'date': pd.to_datetime(date),
+                'n1': numbers[0],
+                'n2': numbers[1],
+                'n3': numbers[2],
+                'n4': numbers[3],
+                'n5': numbers[4],
+                'n6': numbers[5],
+                'bonus': bonus
+            })
+        except:
+            continue  # Skip bad rows
+
+    return pd.DataFrame(data)
 def build_features(df, window=50):
     last = df.tail(window)
     freq = last[[f'n{i}' for i in range(1, 7)]].stack().value_counts(normalize=True)
